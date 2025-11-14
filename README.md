@@ -63,7 +63,9 @@ The `id` field will automatically be added as the last field if not already pres
 
 ## Usage
 
-Run the backup script:
+### Backup
+
+Run the backup script to export all object types:
 
 ```bash
 python backup.py
@@ -75,12 +77,33 @@ Or if using `uv`:
 uv run python backup.py
 ```
 
+**Export specific object types:**
+
+You can export only specific object types to speed up testing:
+
+```bash
+# Using --type option (space-separated)
+python backup.py --type tags regions sites
+
+# Using individual flags
+python backup.py --tags --regions --sites
+
+# Export a single type
+python backup.py --cables
+python backup.py --event_rules
+```
+
 The script will:
 1. Connect to your NetBox instance using credentials from `.env`
-2. Read all YAML configuration files from `conf/` directory (sorted numerically)
-3. Query NetBox for each object type
-4. Export the specified fields to CSV files in `output/` directory
-5. Generate one CSV file per configuration file (e.g., `1-regions.yml` → `output/1-regions.csv`)
+2. Read YAML configuration files from `conf/` directory (sorted numerically)
+3. Filter to specified object types (if `--type` or individual flags are used)
+4. Query NetBox for each object type
+5. Export the specified fields to CSV files in `output/` directory
+6. Generate one CSV file per configuration file (e.g., `1-regions.yml` → `output/1-regions.csv`)
+
+**Available object types:**
+
+Run `python backup.py --help` to see all available object types and their corresponding flags.
 
 ## Output
 
