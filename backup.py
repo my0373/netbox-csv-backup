@@ -3,6 +3,8 @@ import csv
 import yaml
 import re
 import argparse
+import sys
+import urllib3
 from pathlib import Path
 from dotenv import load_dotenv
 import pynetbox
@@ -10,20 +12,28 @@ import pynetbox
 # Load environment variables from .env file
 load_dotenv()
 
+# Constants
+VALUE_PREFERRED_FIELDS = ['action_type', 'status']
+RELATIONSHIP_NAME_FIELDS = [
+    'parent', 'region', 'tenant', 'site', 'location', 'rack',
+    'manufacturer', 'device_type', 'device_role', 'role', 'platform',
+    'cluster', 'cluster_type', 'cluster_group', 'circuit', 'circuit_type',
+    'circuit_provider', 'provider', 'virtual_chassis', 'config_template',
+    'fhrp_group', 'l2vpn', 'virtual_circuit', 'vrf', 'group'
+]
+CABLE_TERMINATION_FIELDS = {
+    'side_a_device', 'side_a_type', 'side_a_name', 'side_a_site',
+    'side_b_device', 'side_b_type', 'side_b_name', 'side_b_site'
+}
+WIRELESS_LINK_FIELDS = {
+    'device_a', 'interface_a', 'site_a', 'device_b', 'interface_b', 'site_b'
+}
+ASSIGNED_OBJECT_FIELDS = {'device', 'virtual_machine', 'interface'}
 
-def get_netbox_endpoint(nb, object_type):
-    """
-    Map object type from config filename to NetBox API endpoint.
-    
-    Args:
-        nb: pynetbox API instance
-        object_type: string like 'regions', 'sites', etc.
-    
-    Returns:
-        NetBox API endpoint object
-    """
-    # Map common object types to their NetBox API paths
-    endpoint_map = {
+
+def build_endpoint_map(nb):
+    """Build the mapping of object types to NetBox API endpoints."""
+    return {
         'tags': nb.extras.tags,
         'data-sources': nb.core.data_sources,
         'webhooks': nb.extras.webhooks,
@@ -117,6 +127,23 @@ def get_netbox_endpoint(nb, object_type):
         'rirs': nb.ipam.rirs,
         'aggregates': nb.ipam.aggregates,
     }
+
+
+def get_netbox_endpoint(nb, object_type):
+    """
+    Map object type from config filename to NetBox API endpoint.
+    
+    Args:
+        nb: pynetbox API instance
+        object_type: string like 'regions', 'sites', etc.
+    
+    Returns:
+        NetBox API endpoint object
+    
+    Raises:
+        ValueError: If object type cannot be mapped to an endpoint
+    """
+    endpoint_map = build_endpoint_map(nb)
     
     # Try exact match first
     if object_type in endpoint_map:
@@ -128,7 +155,6 @@ def get_netbox_endpoint(nb, object_type):
         return endpoint_map[object_type_underscore]
     
     # Try to find by attribute name (for dynamic discovery)
-    # This handles cases like 'device-types' -> nb.dcim.device_types
     parts = object_type.split('-')
     if len(parts) == 2:
         module, resource = parts
@@ -141,6 +167,155 @@ def get_netbox_endpoint(nb, object_type):
     raise ValueError(f"Unknown object type: {object_type}")
 
 
+def get_assigned_object(obj):
+    """Extract assigned_object from a NetBox object."""
+    try:
+        if hasattr(obj, 'assigned_object'):
+            return getattr(obj, 'assigned_object', None)
+        elif hasattr(obj, '__dict__'):
+            obj_dict = dict(obj)
+            return obj_dict.get('assigned_object')
+    except Exception:
+        pass
+    return None
+
+
+def extract_from_assigned_object(assigned_obj, field):
+    """Extract device/virtual_machine/interface from assigned_object."""
+    if not assigned_obj:
+        return ''
+    
+    if isinstance(assigned_obj, dict):
+        if field == 'device':
+            device = assigned_obj.get('device')
+            if device:
+                return device.get('name', '') if isinstance(device, dict) else getattr(device, 'name', '')
+        elif field == 'virtual_machine':
+            vm = assigned_obj.get('virtual_machine')
+            if vm:
+                return vm.get('name', '') if isinstance(vm, dict) else getattr(vm, 'name', '')
+        elif field == 'interface':
+            return str(assigned_obj.get('name', ''))
+    else:
+        # pynetbox object
+        if field == 'device':
+            device = getattr(assigned_obj, 'device', None)
+            return getattr(device, 'name', '') if device and hasattr(device, 'name') else ''
+        elif field == 'virtual_machine':
+            vm = getattr(assigned_obj, 'virtual_machine', None)
+            return getattr(vm, 'name', '') if vm and hasattr(vm, 'name') else ''
+        elif field == 'interface':
+            return str(getattr(assigned_obj, 'name', ''))
+    
+    return ''
+
+
+def extract_wireless_link_field(obj, field):
+    """Extract wireless link fields (device_a, interface_a, site_a, etc.)."""
+    side = 'a' if field.endswith('_a') else 'b'
+    interface_attr = f'interface_{side}'
+    interface = getattr(obj, interface_attr, None)
+    
+    if not interface:
+        return ''
+    
+    if field.startswith('device_'):
+        device = getattr(interface, 'device', None)
+        return getattr(device, 'name', '') if device and hasattr(device, 'name') else ''
+    elif field.startswith('interface_'):
+        return str(getattr(interface, 'name', ''))
+    elif field.startswith('site_'):
+        device = getattr(interface, 'device', None)
+        if device:
+            site = getattr(device, 'site', None)
+            return getattr(site, 'name', '') if site and hasattr(site, 'name') else ''
+    
+    return ''
+
+
+def extract_cable_termination_field(obj, field):
+    """Extract cable termination fields (side_a_device, side_b_name, etc.)."""
+    side = 'a' if 'side_a' in field else 'b'
+    terminations_attr = f'{side}_terminations'
+    terminations = getattr(obj, terminations_attr, [])
+    
+    if not terminations or len(terminations) == 0:
+        return ''
+    
+    term = terminations[0]
+    
+    if field.endswith('_device'):
+        device = getattr(term, 'device', None)
+        return getattr(device, 'name', '') if device and hasattr(device, 'name') else ''
+    elif field.endswith('_type'):
+        return str(getattr(term, 'type', '')) if getattr(term, 'type', None) else ''
+    elif field.endswith('_name'):
+        return str(getattr(term, 'name', '')) if getattr(term, 'name', None) else ''
+    elif field.endswith('_site'):
+        device = getattr(term, 'device', None)
+        if device:
+            site = getattr(device, 'site', None)
+            return getattr(site, 'name', '') if site and hasattr(site, 'name') else ''
+    
+    return ''
+
+
+def extract_relationship_name(value):
+    """Extract name from a relationship field (parent, region, tenant, etc.)."""
+    if isinstance(value, dict):
+        return str(value.get('name', value.get('id', '')))
+    elif hasattr(value, 'name'):
+        return value.name
+    elif hasattr(value, 'id'):
+        return value.id
+    return ''
+
+
+def extract_record_value(value_dict, field):
+    """Extract value from a pynetbox Record object (choice fields like status, action_type)."""
+    if field in VALUE_PREFERRED_FIELDS:
+        # Prefer 'value' for CSV import compatibility
+        return str(value_dict.get('value', '')) or str(value_dict.get('label', ''))
+    else:
+        # Prefer 'label' for display fields
+        return str(value_dict.get('label', '')) or str(value_dict.get('value', '')) or str(list(value_dict.values())[0] if value_dict else '')
+
+
+def extract_dict_value(value, field):
+    """Extract value from a dict (choice fields like status, action_type)."""
+    if field in VALUE_PREFERRED_FIELDS:
+        return str(value.get('value', '')) or str(value.get('label', ''))
+    else:
+        return str(value.get('label', '')) or str(value.get('value', '')) or str(list(value.values())[0] if value else '')
+
+
+def extract_list_value(value):
+    """Extract value from a list (like tags)."""
+    if not value:
+        return ''
+    
+    tag_values = []
+    for item in value:
+        if hasattr(item, 'slug'):
+            tag_values.append(str(item.slug))
+        elif hasattr(item, 'name'):
+            tag_values.append(str(item.name))
+        else:
+            tag_values.append(str(item))
+    return ','.join(tag_values)
+
+
+def extract_nested_object_value(value):
+    """Extract value from a nested object (has name, slug, or id)."""
+    if hasattr(value, 'name'):
+        return value.name
+    elif hasattr(value, 'slug'):
+        return value.slug
+    elif hasattr(value, 'id'):
+        return value.id
+    return ''
+
+
 def extract_field_value(obj, field):
     """
     Extract a field value from a NetBox object, handling nested objects.
@@ -150,158 +325,29 @@ def extract_field_value(obj, field):
         field: field name to extract
     
     Returns:
-        Field value (string or None)
+        Field value (string)
     """
-    # Special handling for MAC addresses and IP addresses
-    # These use assigned_object (generic foreign key) instead of direct device/virtual_machine/interface fields
-    assigned_obj = None
-    try:
-        if hasattr(obj, 'assigned_object'):
-            assigned_obj = getattr(obj, 'assigned_object', None)
-        elif hasattr(obj, '__dict__'):
-            obj_dict = dict(obj)
-            if 'assigned_object' in obj_dict:
-                assigned_obj = obj_dict['assigned_object']
-    except:
-        pass
-    
-    if assigned_obj and field in ['device', 'virtual_machine', 'interface']:
-        # assigned_object can be a dict or a pynetbox object
-        if isinstance(assigned_obj, dict):
-            if field == 'device':
-                device = assigned_obj.get('device')
-                if device:
-                    if isinstance(device, dict):
-                        return device.get('name', '')
-                    elif hasattr(device, 'name'):
-                        return device.name
-            elif field == 'virtual_machine':
-                # Check if assigned_object is a VM interface
-                if 'virtual_machine' in assigned_obj:
-                    vm = assigned_obj['virtual_machine']
-                    if isinstance(vm, dict):
-                        return vm.get('name', '')
-                    elif hasattr(vm, 'name'):
-                        return vm.name
-            elif field == 'interface':
-                # Interface name is in assigned_object itself
-                if 'name' in assigned_obj:
-                    return str(assigned_obj['name'])
-        else:
-            # It's a pynetbox object
-            if field == 'device':
-                if hasattr(assigned_obj, 'device') and assigned_obj.device:
-                    return assigned_obj.device.name if hasattr(assigned_obj.device, 'name') else str(assigned_obj.device)
-            elif field == 'virtual_machine':
-                if hasattr(assigned_obj, 'virtual_machine') and assigned_obj.virtual_machine:
-                    return assigned_obj.virtual_machine.name if hasattr(assigned_obj.virtual_machine, 'name') else str(assigned_obj.virtual_machine)
-            elif field == 'interface':
-                if hasattr(assigned_obj, 'name'):
-                    return str(assigned_obj.name)
-        return ''  # Return empty if assigned_object exists but field not found
+    # Special handling for assigned_object fields (MAC/IP addresses)
+    if field in ASSIGNED_OBJECT_FIELDS:
+        assigned_obj = get_assigned_object(obj)
+        if assigned_obj:
+            result = extract_from_assigned_object(assigned_obj, field)
+            if result:
+                return result
     
     # Special handling for wireless-link fields
-    # Wireless links use interface_a and interface_b which are objects, not direct device_a/device_b fields
-    if hasattr(obj, 'interface_a') or hasattr(obj, 'interface_b'):
-        if field == 'device_a':
-            if hasattr(obj, 'interface_a') and obj.interface_a:
-                if hasattr(obj.interface_a, 'device') and obj.interface_a.device:
-                    return obj.interface_a.device.name if hasattr(obj.interface_a.device, 'name') else str(obj.interface_a.device)
-            return ''
-        elif field == 'interface_a':
-            if hasattr(obj, 'interface_a') and obj.interface_a:
-                if hasattr(obj.interface_a, 'name'):
-                    return str(obj.interface_a.name)
-            return ''
-        elif field == 'site_a':
-            if hasattr(obj, 'interface_a') and obj.interface_a:
-                if hasattr(obj.interface_a, 'device') and obj.interface_a.device:
-                    device = obj.interface_a.device
-                    if hasattr(device, 'site') and device.site:
-                        return device.site.name if hasattr(device.site, 'name') else str(device.site)
-            return ''
-        elif field == 'device_b':
-            if hasattr(obj, 'interface_b') and obj.interface_b:
-                if hasattr(obj.interface_b, 'device') and obj.interface_b.device:
-                    return obj.interface_b.device.name if hasattr(obj.interface_b.device, 'name') else str(obj.interface_b.device)
-            return ''
-        elif field == 'interface_b':
-            if hasattr(obj, 'interface_b') and obj.interface_b:
-                if hasattr(obj.interface_b, 'name'):
-                    return str(obj.interface_b.name)
-            return ''
-        elif field == 'site_b':
-            if hasattr(obj, 'interface_b') and obj.interface_b:
-                if hasattr(obj.interface_b, 'device') and obj.interface_b.device:
-                    device = obj.interface_b.device
-                    if hasattr(device, 'site') and device.site:
-                        return device.site.name if hasattr(device.site, 'name') else str(device.site)
-            return ''
+    if field in WIRELESS_LINK_FIELDS and (hasattr(obj, 'interface_a') or hasattr(obj, 'interface_b')):
+        result = extract_wireless_link_field(obj, field)
+        if result:
+            return result
     
     # Special handling for cable termination fields
-    # Cables use a_terminations and b_terminations (lists) instead of direct fields
-    if hasattr(obj, 'a_terminations') or hasattr(obj, 'b_terminations'):
-        if field == 'side_a_device':
-            terminations = getattr(obj, 'a_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'device') and term.device:
-                    return term.device.name if hasattr(term.device, 'name') else str(term.device)
-            return ''
-        elif field == 'side_a_type':
-            terminations = getattr(obj, 'a_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'type'):
-                    return str(term.type) if term.type else ''
-            return ''
-        elif field == 'side_a_name':
-            terminations = getattr(obj, 'a_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'name'):
-                    return str(term.name) if term.name else ''
-            return ''
-        elif field == 'side_a_site':
-            terminations = getattr(obj, 'a_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'device') and term.device:
-                    device = term.device
-                    if hasattr(device, 'site') and device.site:
-                        return device.site.name if hasattr(device.site, 'name') else str(device.site)
-            return ''
-        elif field == 'side_b_device':
-            terminations = getattr(obj, 'b_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'device') and term.device:
-                    return term.device.name if hasattr(term.device, 'name') else str(term.device)
-            return ''
-        elif field == 'side_b_type':
-            terminations = getattr(obj, 'b_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'type'):
-                    return str(term.type) if term.type else ''
-            return ''
-        elif field == 'side_b_name':
-            terminations = getattr(obj, 'b_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'name'):
-                    return str(term.name) if term.name else ''
-            return ''
-        elif field == 'side_b_site':
-            terminations = getattr(obj, 'b_terminations', [])
-            if terminations and len(terminations) > 0:
-                term = terminations[0]
-                if hasattr(term, 'device') and term.device:
-                    device = term.device
-                    if hasattr(device, 'site') and device.site:
-                        return device.site.name if hasattr(device.site, 'name') else str(device.site)
-            return ''
+    if field in CABLE_TERMINATION_FIELDS and (hasattr(obj, 'a_terminations') or hasattr(obj, 'b_terminations')):
+        result = extract_cable_termination_field(obj, field)
+        if result:
+            return result
     
+    # Get the base value
     value = getattr(obj, field, None)
     
     if value is None:
@@ -309,117 +355,117 @@ def extract_field_value(obj, field):
     
     # Special handling for relationship fields that should export names (not IDs)
     # These must be checked before Record-to-dict conversion
-    relationship_name_fields = ['parent', 'region', 'tenant', 'site', 'location', 'rack', 
-                                'manufacturer', 'device_type', 'device_role', 'role', 'platform',
-                                'cluster', 'cluster_type', 'cluster_group', 'circuit', 'circuit_type',
-                                'circuit_provider', 'provider', 'virtual_chassis', 'config_template',
-                                'fhrp_group', 'l2vpn', 'virtual_circuit', 'vrf', 'group']
+    if field in RELATIONSHIP_NAME_FIELDS:
+        result = extract_relationship_name(value)
+        if result:
+            return result
     
-    if field in relationship_name_fields:
-        # Relationship fields should export names, not IDs
-        if isinstance(value, dict):
-            if 'name' in value:
-                return str(value['name'])
-            elif 'id' in value:
-                # If we only have ID, try to look it up - but this shouldn't happen
-                return str(value['id'])
-        elif hasattr(value, 'name'):
-            return value.name
-        elif hasattr(value, 'id'):
-            # Fallback to ID if name not available
-            return value.id
-    
-    # Handle pynetbox Record objects (like action_type, status which are choice fields)
-    # These need to be converted to dict to access value/label
+    # Handle pynetbox Record objects (choice fields)
     if hasattr(value, '__class__') and 'Record' in str(type(value)):
         try:
             value_dict = dict(value)
             if isinstance(value_dict, dict):
-                # Fields that should use 'value' instead of 'label' for CSV import compatibility
-                # NetBox CSV import expects values (e.g., 'active', 'connected') not labels (e.g., 'Active', 'Connected')
-                value_preferred_fields = ['action_type', 'status']
-                
-                if field in value_preferred_fields:
-                    # Prefer 'value' for fields that need it for CSV import
-                    if 'value' in value_dict and value_dict['value']:
-                        return str(value_dict['value'])
-                    elif 'label' in value_dict and value_dict['label']:
-                        return str(value_dict['label'])
-                else:
-                    # Prefer 'label' for display fields (but most should use value for import)
-                    if 'label' in value_dict and value_dict['label']:
-                        return str(value_dict['label'])
-                    elif 'value' in value_dict and value_dict['value']:
-                        return str(value_dict['value'])
-                
-                if len(value_dict) > 0:
-                    return str(list(value_dict.values())[0])
-        except:
+                return extract_record_value(value_dict, field)
+        except Exception:
             pass
     
-    # Handle dict values (like status which has {'value': 'connected', 'label': 'Connected'})
+    # Handle dict values (choice fields)
     if isinstance(value, dict):
-        # Fields that should use 'value' instead of 'label' for CSV import compatibility
-        # NetBox CSV import expects values (e.g., 'active', 'connected') not labels (e.g., 'Active', 'Connected')
-        value_preferred_fields = ['action_type', 'status']
-        
-        if field in value_preferred_fields:
-            # Prefer 'value' for fields that need it for CSV import
-            if 'value' in value and value['value']:
-                return str(value['value'])
-            elif 'label' in value and value['label']:
-                return str(value['label'])
-        else:
-            # Prefer 'label' for display fields (but most should use value for import)
-            if 'label' in value and value['label']:
-                return str(value['label'])
-            elif 'value' in value and value['value']:
-                return str(value['value'])
-        
-        if len(value) > 0:
-            return str(list(value.values())[0])
-        return ''
+        return extract_dict_value(value, field)
     
-    # Handle nested objects (region, group, tenant, parent, etc.)
-    # Special handling for action_object in event rules - need to get the name
+    # Special handling for action_object in event rules
     if field == 'action_object':
-        # action_object can be a dict or a pynetbox Record object
         if isinstance(value, dict):
-            # Try to get name from dict
-            if 'name' in value:
-                return str(value['name'])
-            elif 'id' in value:
-                # If we only have ID, we'll need to look it up - but for now return ID
-                return str(value['id'])
-        # Check if it's a Record object with name attribute (this should catch it)
+            return str(value.get('name', value.get('id', '')))
         if hasattr(value, 'name'):
             return value.name
     
-    # Handle nested objects (region, group, tenant, parent, etc.)
-    if hasattr(value, 'name'):
-        return value.name
-    elif hasattr(value, 'slug'):
-        return value.slug
-    elif hasattr(value, 'id'):
-        return value.id
+    # Handle nested objects
+    if hasattr(value, 'name') or hasattr(value, 'slug') or hasattr(value, 'id'):
+        result = extract_nested_object_value(value)
+        if result:
+            return result
     
     # Handle lists (like tags)
     if isinstance(value, list):
-        if len(value) == 0:
-            return ''
-        # For tags, extract slug if available, otherwise use string representation
-        tag_values = []
-        for item in value:
-            if hasattr(item, 'slug'):
-                tag_values.append(str(item.slug))
-            elif hasattr(item, 'name'):
-                tag_values.append(str(item.name))
-            else:
-                tag_values.append(str(item))
-        return ','.join(tag_values)
+        return extract_list_value(value)
     
     # Handle other types
     return str(value) if value is not None else ''
+
+
+def normalize_string_value(value):
+    """Normalize string value for CSV export (flatten newlines, collapse spaces)."""
+    if value is None or value == '':
+        return ''
+    
+    str_value = str(value)
+    # Replace newlines and carriage returns with spaces
+    str_value = str_value.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
+    # Collapse multiple spaces into single space
+    return ' '.join(str_value.split())
+
+
+def parse_object_type_from_filename(filename):
+    """Extract object type from config filename (e.g., '1-regions.yml' -> 'regions')."""
+    match = re.match(r'\d+-(.+)', filename)
+    if not match:
+        raise ValueError(f"Invalid config filename format: {filename}. Expected format: 'N-objecttype.yml'")
+    return match.group(1)
+
+
+def get_config_sort_key(path):
+    """Get sort key for config files (by numerical prefix)."""
+    match = re.match(r'(\d+)-', path.name)
+    return int(match.group(1)) if match else float('inf')
+
+
+def normalize_object_types(object_types):
+    """Normalize object types (handle both 'tags' and '1-tags' formats)."""
+    normalized = set()
+    for ot in object_types:
+        match = re.match(r'\d+-(.+)', ot)
+        normalized.add(match.group(1) if match else ot)
+    return normalized
+
+
+def load_config(config_path):
+    """Load and validate YAML configuration file."""
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    fields = config.get('fields', [])
+    if not fields:
+        raise ValueError(f"No fields specified in configuration file: {config_path}")
+    
+    # Remove 'id' field from fields list
+    fields = [f for f in fields if f != 'id']
+    
+    if not fields:
+        raise ValueError(f"No fields remaining after removing 'id' from configuration file: {config_path}")
+    
+    return fields
+
+
+def create_netbox_connection():
+    """Create and configure NetBox API connection."""
+    netbox_url = os.getenv('NETBOX_URL') or os.getenv('NB_URL')
+    netbox_api_key = os.getenv('NETBOX_API_KEY') or os.getenv('NB_API_KEY') or os.getenv('NETBOX_TOKEN')
+    
+    if not netbox_url:
+        raise ValueError("NETBOX_URL or NB_URL environment variable is required")
+    if not netbox_api_key:
+        raise ValueError("NETBOX_API_KEY, NB_API_KEY, or NETBOX_TOKEN environment variable is required")
+    
+    nb = pynetbox.api(netbox_url, token=netbox_api_key)
+    
+    # Disable SSL verification if needed
+    ssl_verify = os.getenv('NETBOX_SSL_VERIFY', 'true').lower() not in ('false', '0', 'no')
+    if not ssl_verify:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        nb.http_session.verify = False
+    
+    return nb
 
 
 def backup_from_config(config_path, nb):
@@ -430,27 +476,18 @@ def backup_from_config(config_path, nb):
         config_path: Path to the YAML configuration file
         nb: pynetbox API instance
     """
-    # Read the YAML configuration file
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
+    try:
+        fields = load_config(config_path)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
     
-    fields = config.get('fields', [])
-    if not fields:
-        raise ValueError(f"No fields specified in configuration file: {config_path}")
-    
-    # Remove 'id' field from fields list if present (we don't export IDs)
-    fields = [f for f in fields if f != 'id']
-    
-    if not fields:
-        raise ValueError(f"No fields remaining after removing 'id' from configuration file: {config_path}")
-    
-    # Extract object type from filename (e.g., "1-regions.yml" -> "regions")
-    filename = config_path.stem  # Gets "1-regions" without extension
-    match = re.match(r'\d+-(.+)', filename)
-    if not match:
-        raise ValueError(f"Invalid config filename format: {config_path.name}. Expected format: 'N-objecttype.yml'")
-    
-    object_type = match.group(1)
+    # Extract object type from filename
+    try:
+        object_type = parse_object_type_from_filename(config_path.stem)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
     
     # Get the NetBox API endpoint
     try:
@@ -467,16 +504,14 @@ def backup_from_config(config_path, nb):
         return
     
     # Prepare output directory and file
-    output_filename = f"{filename}.csv"
+    output_filename = f"{config_path.stem}.csv"
     output_path = Path('output') / output_filename
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Write to CSV with proper quoting for fields containing newlines, commas, or quotes
+    # Write to CSV
     with open(output_path, 'w', newline='', encoding='utf-8') as csvfile:
-        # Use QUOTE_ALL to quote all fields, ensuring proper handling of newlines,
-        # commas, and quotes. This guarantees all fields are properly enclosed.
         writer = csv.DictWriter(
-            csvfile, 
+            csvfile,
             fieldnames=fields,
             quoting=csv.QUOTE_ALL,
             doublequote=True
@@ -489,7 +524,8 @@ def backup_from_config(config_path, nb):
                 # Skip 'id' field if it somehow got through
                 if field == 'id':
                     continue
-                # For action_object, get the name directly from the Record object
+                
+                # Special handling for action_object
                 if field == 'action_object':
                     ao = getattr(obj, 'action_object', None)
                     if ao:
@@ -503,108 +539,60 @@ def backup_from_config(config_path, nb):
                         value = ''
                 else:
                     value = extract_field_value(obj, field)
-                # Ensure the value is a string - QUOTE_ALL will quote everything
-                # Convert all values to strings to ensure consistent handling
-                if value is None or value == '':
-                    row[field] = ''
-                else:
-                    # Always convert to string and flatten newlines to spaces
-                    # so multi-line fields stay on a single CSV line
-                    str_value = str(value)
-                    # Replace newlines and carriage returns with spaces
-                    str_value = str_value.replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' ')
-                    # Collapse multiple spaces into single space
-                    str_value = ' '.join(str_value.split())
-                    row[field] = str_value
+                
+                row[field] = normalize_string_value(value)
             
             writer.writerow(row)
     
     print(f"Successfully exported {len(objects)} {object_type} to {output_path}")
 
 
-def backup_all(object_types=None):
-    """
-    Iterate over all YAML configuration files in conf/ directory,
-    sorted by numerical prefix, and export each to CSV.
-    
-    Args:
-        object_types: Optional list of object types to export (e.g., ['tags', 'regions']).
-                     If None, exports all object types.
-    """
-    # Get NetBox connection details from environment variables
-    netbox_url = os.getenv('NETBOX_URL') or os.getenv('NB_URL')
-    netbox_api_key = os.getenv('NETBOX_API_KEY') or os.getenv('NB_API_KEY') or os.getenv('NETBOX_TOKEN')
-    
-    if not netbox_url:
-        raise ValueError("NETBOX_URL or NB_URL environment variable is required")
-    if not netbox_api_key:
-        raise ValueError("NETBOX_API_KEY, NB_API_KEY, or NETBOX_TOKEN environment variable is required")
-    
-    # Connect to NetBox
-    # Disable SSL verification if NETBOX_SSL_VERIFY is set to false
-    ssl_verify = os.getenv('NETBOX_SSL_VERIFY', 'true').lower() not in ('false', '0', 'no')
-    nb = pynetbox.api(netbox_url, token=netbox_api_key)
-    
-    # Disable SSL verification if needed
-    if not ssl_verify:
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        nb.http_session.verify = False
-    
-    # Find all YAML files in conf/ directory
-    conf_dir = Path('conf')
-    if not conf_dir.exists():
-        raise ValueError("conf/ directory does not exist")
-    
+def find_config_files(conf_dir, object_types=None):
+    """Find and filter configuration files."""
     config_files = list(conf_dir.glob('*.yml')) + list(conf_dir.glob('*.yaml'))
     
     if not config_files:
-        print("No YAML configuration files found in conf/ directory")
-        return
+        return []
     
-    # Sort by numerical prefix (the number before the dash)
-    def get_sort_key(path):
-        match = re.match(r'(\d+)-', path.name)
-        if match:
-            return int(match.group(1))
-        return float('inf')  # Put files without numeric prefix at the end
-    
-    config_files.sort(key=get_sort_key)
+    # Sort by numerical prefix
+    config_files.sort(key=get_config_sort_key)
     
     # Filter by object types if specified
     if object_types:
-        # Normalize object types (handle both 'tags' and '1-tags' formats)
-        normalized_types = set()
-        for ot in object_types:
-            # Remove numeric prefix if present
-            match = re.match(r'\d+-(.+)', ot)
-            if match:
-                normalized_types.add(match.group(1))
-            else:
-                normalized_types.add(ot)
-        
-        # Filter config files
+        normalized_types = normalize_object_types(object_types)
         filtered_files = []
         for config_path in config_files:
-            filename = config_path.stem
-            match = re.match(r'\d+-(.+)', filename)
-            if match:
-                obj_type = match.group(1)
+            try:
+                obj_type = parse_object_type_from_filename(config_path.stem)
                 if obj_type in normalized_types:
                     filtered_files.append(config_path)
+            except ValueError:
+                continue
         
-        config_files = filtered_files
-        
-        if not config_files:
+        if not filtered_files:
             print(f"No configuration files found for object types: {', '.join(object_types)}")
-            return
+            return []
+        
+        return filtered_files
     
-    # Process each configuration file
-    for config_path in config_files:
-        backup_from_config(config_path, nb)
+    return config_files
 
 
-if __name__ == '__main__':
+def get_available_object_types(conf_dir):
+    """Get all available object types from config files."""
+    available_types = set()
+    for pattern in ['*.yml', '*.yaml']:
+        for config_file in conf_dir.glob(pattern):
+            try:
+                obj_type = parse_object_type_from_filename(config_file.stem)
+                available_types.add(obj_type)
+            except ValueError:
+                continue
+    return available_types
+
+
+def setup_argument_parser(available_types):
+    """Set up command-line argument parser."""
     parser = argparse.ArgumentParser(
         description='Export NetBox data to CSV files based on YAML configuration files.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -624,20 +612,7 @@ Examples:
         """
     )
     
-    # Get available object types from config files
-    conf_dir = Path('conf')
-    available_types = set()
-    if conf_dir.exists():
-        for config_file in conf_dir.glob('*.yml'):
-            match = re.match(r'\d+-(.+)', config_file.stem)
-            if match:
-                available_types.add(match.group(1))
-        for config_file in conf_dir.glob('*.yaml'):
-            match = re.match(r'\d+-(.+)', config_file.stem)
-            if match:
-                available_types.add(match.group(1))
-    
-    # Add --type option for specifying multiple types
+    # Add --type option
     parser.add_argument(
         '--type', '--types',
         nargs='+',
@@ -647,7 +622,6 @@ Examples:
     
     # Add individual flags for each object type
     for obj_type in sorted(available_types):
-        # Convert to valid Python identifier (replace hyphens with underscores)
         flag_name = obj_type.replace('-', '_')
         parser.add_argument(
             f'--{flag_name}',
@@ -657,28 +631,73 @@ Examples:
             help=f'Export {obj_type}'
         )
     
+    return parser
+
+
+def parse_object_types(args):
+    """Parse and normalize object types from command-line arguments."""
+    if not args.object_types:
+        return None
+    
+    object_types = []
+    for ot in args.object_types:
+        if isinstance(ot, list):
+            object_types.extend(ot)
+        else:
+            object_types.append(ot)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    return [x for x in object_types if x and not (x in seen or seen.add(x))]
+
+
+def backup_all(object_types=None):
+    """
+    Iterate over all YAML configuration files in conf/ directory,
+    sorted by numerical prefix, and export each to CSV.
+    
+    Args:
+        object_types: Optional list of object types to export (e.g., ['tags', 'regions']).
+                     If None, exports all object types.
+    """
+    # Create NetBox connection
+    nb = create_netbox_connection()
+    
+    # Find configuration files
+    conf_dir = Path('conf')
+    if not conf_dir.exists():
+        raise ValueError("conf/ directory does not exist")
+    
+    config_files = find_config_files(conf_dir, object_types)
+    
+    if not config_files:
+        print("No YAML configuration files found in conf/ directory")
+        return
+    
+    # Process each configuration file
+    for config_path in config_files:
+        backup_from_config(config_path, nb)
+
+
+def main():
+    """Main entry point."""
+    conf_dir = Path('conf')
+    available_types = get_available_object_types(conf_dir) if conf_dir.exists() else set()
+    
+    parser = setup_argument_parser(available_types)
     args = parser.parse_args()
     
-    # Collect all specified object types
-    object_types = []
-    if args.object_types:
-        # args.object_types is a list that may contain lists from --type and values from individual flags
-        for ot in args.object_types:
-            if isinstance(ot, list):
-                object_types.extend(ot)
-            else:
-                object_types.append(ot)
-        # Remove duplicates while preserving order
-        seen = set()
-        object_types = [x for x in object_types if x and not (x in seen or seen.add(x))]
+    object_types = parse_object_types(args)
     
     try:
-        backup_all(object_types=object_types if object_types else None)
+        backup_all(object_types=object_types)
     except KeyboardInterrupt:
         print("\n\nBackup interrupted by user.")
-        import sys
         sys.exit(1)
     except Exception as e:
         print(f"\nError: {e}")
-        import sys
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
