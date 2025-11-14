@@ -1,0 +1,11 @@
+fields:
+  - name
+  - slug
+  - rir
+  - start
+  - end
+  - tenant
+  - description
+  - tags
+  - id
+

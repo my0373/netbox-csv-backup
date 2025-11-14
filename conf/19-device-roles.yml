@@ -1,0 +1,12 @@
+fields:
+  - name
+  - slug
+  - color
+  - parent
+  - vm_role
+  - config_template
+  - description
+  - comments
+  - tags
+  - id
+

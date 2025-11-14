@@ -1,0 +1,13 @@
+fields:
+  - device
+  - name
+  - type
+  - rear_port
+  - rear_port_position
+  - label
+  - color
+  - mark_connected
+  - description
+  - tags
+  - id
+

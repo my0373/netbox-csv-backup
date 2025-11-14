@@ -1,0 +1,18 @@
+fields:
+  - prefix
+  - status
+  - vrf
+  - tenant
+  - vlan_group
+  - vlan_site
+  - vlan
+  - role
+  - scope_type
+  - scope_id
+  - is_pool
+  - mark_utilized
+  - description
+  - comments
+  - tags
+  - id
+

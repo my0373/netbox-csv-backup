@@ -1,0 +1,9 @@
+fields:
+  - name
+  - proposals
+  - description
+  - pfs_group
+  - comments
+  - tags
+  - id
+

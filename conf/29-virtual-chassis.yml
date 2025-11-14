@@ -1,0 +1,9 @@
+fields:
+  - name
+  - domain
+  - master
+  - description
+  - comments
+  - tags
+  - id
+

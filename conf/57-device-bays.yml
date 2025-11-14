@@ -1,0 +1,9 @@
+fields:
+  - device
+  - name
+  - label
+  - installed_device
+  - description
+  - tags
+  - id
+

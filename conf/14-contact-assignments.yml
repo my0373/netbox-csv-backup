@@ -1,0 +1,9 @@
+fields:
+  - object_type
+  - object_id
+  - contact
+  - role
+  - priority
+  - tags
+  - id
+

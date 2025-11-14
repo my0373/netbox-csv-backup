@@ -1,0 +1,15 @@
+fields:
+  - vid
+  - name
+  - status
+  - site
+  - group
+  - tenant
+  - role
+  - description
+  - qinq_role
+  - qinq_svlan
+  - comments
+  - tags
+  - id
+

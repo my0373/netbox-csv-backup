@@ -1,0 +1,11 @@
+fields:
+  - name
+  - version
+  - proposals
+  - description
+  - mode
+  - preshared_key
+  - comments
+  - tags
+  - id
+

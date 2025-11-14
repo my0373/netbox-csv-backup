@@ -1,0 +1,13 @@
+fields:
+  - name
+  - object_types
+  - event_types
+  - action_type
+  - action_object
+  - description
+  - enabled
+  - conditions
+  - comments
+  - tags
+  - id
+

@@ -1,0 +1,17 @@
+fields:
+  - cid
+  - provider
+  - type
+  - status
+  - provider_account
+  - tenant
+  - install_date
+  - termination_date
+  - commit_rate
+  - distance
+  - distance_unit
+  - description
+  - comments
+  - tags
+  - id
+

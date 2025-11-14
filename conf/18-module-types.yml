@@ -1,0 +1,13 @@
+fields:
+  - manufacturer
+  - model
+  - part_number
+  - description
+  - airflow
+  - weight
+  - weight_unit
+  - profile
+  - comments
+  - tags
+  - id
+

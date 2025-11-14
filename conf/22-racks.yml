@@ -1,0 +1,29 @@
+fields:
+  - site
+  - name
+  - status
+  - location
+  - facility_id
+  - tenant
+  - role
+  - rack_type
+  - form_factor
+  - serial
+  - asset_tag
+  - width
+  - u_height
+  - desc_units
+  - outer_width
+  - outer_height
+  - outer_depth
+  - outer_unit
+  - mounting_depth
+  - airflow
+  - weight
+  - max_weight
+  - weight_unit
+  - description
+  - comments
+  - tags
+  - id
+

@@ -1,0 +1,9 @@
+fields:
+  - name
+  - slug
+  - group
+  - description
+  - comments
+  - tags
+  - id
+

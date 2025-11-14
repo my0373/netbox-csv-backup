@@ -1,0 +1,8 @@
+fields:
+  - virtual_circuit
+  - role
+  - interface
+  - description
+  - tags
+  - id
+

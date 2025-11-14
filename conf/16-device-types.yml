@@ -1,0 +1,18 @@
+fields:
+  - manufacturer
+  - model
+  - slug
+  - u_height
+  - default_platform
+  - part_number
+  - exclude_from_utilization
+  - is_full_depth
+  - subdevice_role
+  - airflow
+  - description
+  - weight
+  - weight_unit
+  - comments
+  - tags
+  - id
+

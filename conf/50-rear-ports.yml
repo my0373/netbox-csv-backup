@@ -1,0 +1,12 @@
+fields:
+  - device
+  - name
+  - type
+  - positions
+  - label
+  - color
+  - mark_connected
+  - description
+  - tags
+  - id
+

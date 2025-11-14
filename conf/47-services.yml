@@ -1,0 +1,13 @@
+fields:
+  - name
+  - protocol
+  - ports
+  - parent_object_type
+  - ipaddresses
+  - description
+  - comments
+  - tags
+  - id
+  - parent
+  - parent_object_id
+

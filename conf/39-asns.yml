@@ -1,0 +1,9 @@
+fields:
+  - asn
+  - rir
+  - tenant
+  - description
+  - comments
+  - tags
+  - id
+

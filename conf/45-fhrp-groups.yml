@@ -1,0 +1,11 @@
+fields:
+  - protocol
+  - group_id
+  - auth_type
+  - auth_key
+  - name
+  - description
+  - comments
+  - tags
+  - id
+

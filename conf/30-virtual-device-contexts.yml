@@ -1,0 +1,12 @@
+fields:
+  - name
+  - device
+  - status
+  - tenant
+  - identifier
+  - comments
+  - primary_ip4
+  - primary_ip6
+  - tags
+  - id
+

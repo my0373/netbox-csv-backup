@@ -1,0 +1,22 @@
+fields:
+  - manufacturer
+  - model
+  - slug
+  - width
+  - u_height
+  - form_factor
+  - starting_unit
+  - desc_units
+  - outer_width
+  - outer_height
+  - outer_depth
+  - outer_unit
+  - mounting_depth
+  - weight
+  - max_weight
+  - weight_unit
+  - description
+  - comments
+  - tags
+  - id
+

@@ -1,0 +1,12 @@
+fields:
+  - device
+  - name
+  - label
+  - type
+  - mark_connected
+  - maximum_draw
+  - allocated_draw
+  - description
+  - tags
+  - id
+

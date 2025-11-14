@@ -1,0 +1,13 @@
+fields:
+  - site
+  - name
+  - slug
+  - status
+  - parent
+  - tenant
+  - facility
+  - description
+  - tags
+  - comments
+  - id
+

@@ -1,0 +1,20 @@
+fields:
+  - site
+  - power_panel
+  - name
+  - status
+  - type
+  - supply
+  - phase
+  - voltage
+  - amperage
+  - max_utilization
+  - location
+  - rack
+  - mark_connected
+  - tenant
+  - description
+  - comments
+  - tags
+  - id
+

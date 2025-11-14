@@ -1,0 +1,11 @@
+fields:
+  - mac_address
+  - device
+  - virtual_machine
+  - interface
+  - is_primary
+  - description
+  - comments
+  - tags
+  - id
+

@@ -1,0 +1,13 @@
+fields:
+  - name
+  - status
+  - encapsulation
+  - group
+  - ipsec_profile
+  - tenant
+  - tunnel_id
+  - description
+  - comments
+  - tags
+  - id
+

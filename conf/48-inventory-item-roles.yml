@@ -1,0 +1,8 @@
+fields:
+  - name
+  - slug
+  - color
+  - description
+  - tags
+  - id
+

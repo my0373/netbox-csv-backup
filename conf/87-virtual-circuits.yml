@@ -1,0 +1,12 @@
+fields:
+  - cid
+  - provider_network
+  - type
+  - status
+  - provider_account
+  - tenant
+  - description
+  - comments
+  - tags
+  - id
+

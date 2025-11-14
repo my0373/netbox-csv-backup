@@ -1,0 +1,11 @@
+fields:
+  - site
+  - rack
+  - units
+  - description
+  - location
+  - tenant
+  - comments
+  - tags
+  - id
+

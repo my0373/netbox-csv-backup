@@ -1,0 +1,9 @@
+fields:
+  - site
+  - name
+  - location
+  - description
+  - comments
+  - tags
+  - id
+

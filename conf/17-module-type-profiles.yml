@@ -1,0 +1,8 @@
+fields:
+  - name
+  - description
+  - schema
+  - comments
+  - tags
+  - id
+

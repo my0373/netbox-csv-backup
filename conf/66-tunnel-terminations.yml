@@ -1,0 +1,10 @@
+fields:
+  - tunnel
+  - role
+  - outside_ip
+  - tags
+  - id
+  - device
+  - virtual_machine
+  - termination
+

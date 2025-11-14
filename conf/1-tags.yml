@@ -1,0 +1,9 @@
+fields:
+  - name
+  - slug
+  - color
+  - weight
+  - description
+  - object_types
+  - id
+

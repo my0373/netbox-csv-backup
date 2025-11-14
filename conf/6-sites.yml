@@ -1,0 +1,18 @@
+fields:
+  - name
+  - slug
+  - status
+  - region
+  - group
+  - tenant
+  - facility
+  - time_zone
+  - description
+  - physical_address
+  - shipping_address
+  - latitude
+  - longitude
+  - comments
+  - tags
+  - id
+

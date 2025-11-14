@@ -1,0 +1,9 @@
+fields:
+  - name
+  - protocol
+  - ports
+  - description
+  - comments
+  - tags
+  - id
+

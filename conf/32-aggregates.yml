@@ -1,0 +1,10 @@
+fields:
+  - prefix
+  - rir
+  - tenant
+  - date_added
+  - description
+  - comments
+  - tags
+  - id
+

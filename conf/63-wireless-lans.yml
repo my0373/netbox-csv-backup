@@ -1,0 +1,16 @@
+fields:
+  - ssid
+  - status
+  - group
+  - vlan
+  - tenant
+  - auth_type
+  - auth_cipher
+  - auth_psk
+  - scope_type
+  - scope_id
+  - description
+  - comments
+  - tags
+  - id
+

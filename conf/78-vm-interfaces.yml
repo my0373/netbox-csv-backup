@@ -1,0 +1,13 @@
+fields:
+  - virtual_machine
+  - name
+  - parent
+  - bridge
+  - enabled
+  - mtu
+  - description
+  - mode
+  - vrf
+  - tags
+  - id
+

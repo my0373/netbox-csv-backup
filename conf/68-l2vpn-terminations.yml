@@ -1,0 +1,9 @@
+fields:
+  - l2vpn
+  - device
+  - virtual_machine
+  - interface
+  - vlan
+  - tags
+  - id
+

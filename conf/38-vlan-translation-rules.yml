@@ -1,0 +1,7 @@
+fields:
+  - policy
+  - local_vid
+  - remote_vid
+  - tags
+  - id
+

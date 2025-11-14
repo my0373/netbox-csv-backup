@@ -1,0 +1,12 @@
+fields:
+  - name
+  - slug
+  - type
+  - status
+  - identifier
+  - tenant
+  - description
+  - comments
+  - tags
+  - id
+

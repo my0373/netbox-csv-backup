@@ -1,0 +1,12 @@
+fields:
+  - name
+  - authentication_method
+  - encryption_algorithm
+  - group
+  - description
+  - authentication_algorithm
+  - sa_lifetime
+  - comments
+  - tags
+  - id
+

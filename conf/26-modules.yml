@@ -1,0 +1,14 @@
+fields:
+  - device
+  - module_bay
+  - module_type
+  - status
+  - serial
+  - asset_tag
+  - description
+  - comments
+  - replicate_components
+  - adopt_components
+  - tags
+  - id
+

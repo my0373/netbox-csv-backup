@@ -1,0 +1,9 @@
+fields:
+  - name
+  - slug
+  - manufacturer
+  - config_template
+  - description
+  - tags
+  - id
+

@@ -1,0 +1,13 @@
+fields:
+  - name
+  - title
+  - phone
+  - email
+  - address
+  - link
+  - groups
+  - description
+  - comments
+  - tags
+  - id
+

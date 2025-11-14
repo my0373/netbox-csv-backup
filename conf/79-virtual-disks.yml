@@ -1,0 +1,10 @@
+fields:
+  - virtual_machine
+  - name
+  - size
+  - description
+  - tags
+  - id
+  - cf_datastore_name
+  - cf_vmdk_file_path
+

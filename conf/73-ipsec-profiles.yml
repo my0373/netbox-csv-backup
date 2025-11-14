@@ -1,0 +1,10 @@
+fields:
+  - name
+  - mode
+  - ike_policy
+  - ipsec_policy
+  - description
+  - comments
+  - tags
+  - id
+

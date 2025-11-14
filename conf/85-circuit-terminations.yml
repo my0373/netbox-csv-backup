@@ -1,0 +1,13 @@
+fields:
+  - circuit
+  - term_side
+  - termination_type
+  - termination_id
+  - port_speed
+  - upstream_speed
+  - xconnect_id
+  - pp_info
+  - description
+  - tags
+  - id
+

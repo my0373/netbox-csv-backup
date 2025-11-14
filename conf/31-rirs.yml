@@ -1,0 +1,8 @@
+fields:
+  - name
+  - slug
+  - is_private
+  - description
+  - tags
+  - id
+

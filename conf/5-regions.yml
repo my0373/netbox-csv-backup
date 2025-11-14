@@ -1,0 +1,8 @@
+fields:
+  - name
+  - slug
+  - parent
+  - description
+  - tags
+  - comments
+  - id

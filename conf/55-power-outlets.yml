@@ -1,0 +1,13 @@
+fields:
+  - device
+  - name
+  - label
+  - type
+  - color
+  - mark_connected
+  - power_port
+  - feed_leg
+  - description
+  - tags
+  - id
+

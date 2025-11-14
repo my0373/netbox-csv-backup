@@ -1,0 +1,9 @@
+fields:
+  - provider
+  - account
+  - name
+  - description
+  - comments
+  - tags
+  - id
+

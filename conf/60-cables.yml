@@ -1,0 +1,21 @@
+fields:
+  - side_a_device
+  - side_a_type
+  - side_a_name
+  - side_b_device
+  - side_b_type
+  - side_b_name
+  - side_a_site
+  - side_b_site
+  - type
+  - status
+  - tenant
+  - label
+  - color
+  - length
+  - length_unit
+  - description
+  - comments
+  - tags
+  - id
+

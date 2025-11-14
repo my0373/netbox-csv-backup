@@ -1,0 +1,8 @@
+fields:
+  - name
+  - slug
+  - weight
+  - description
+  - tags
+  - id
+

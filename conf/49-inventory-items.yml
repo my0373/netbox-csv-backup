@@ -1,0 +1,18 @@
+fields:
+  - device
+  - name
+  - status
+  - label
+  - role
+  - manufacturer
+  - parent
+  - part_id
+  - serial
+  - asset_tag
+  - discovered
+  - description
+  - tags
+  - component_type
+  - component_name
+  - id
+

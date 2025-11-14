@@ -1,0 +1,11 @@
+fields:
+  - name
+  - slug
+  - scope_type
+  - scope_id
+  - vid_ranges
+  - tenant
+  - description
+  - tags
+  - id
+

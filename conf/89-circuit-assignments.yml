@@ -1,0 +1,8 @@
+fields:
+  - member_type
+  - member_id
+  - group
+  - priority
+  - tags
+  - id
+

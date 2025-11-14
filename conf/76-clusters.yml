@@ -1,0 +1,14 @@
+fields:
+  - name
+  - type
+  - status
+  - group
+  - scope_type
+  - scope_id
+  - tenant
+  - description
+  - comments
+  - tags
+  - id
+  - site
+
