@@ -1,5 +1,9 @@
 # NetBox Data Backup Script
 
+> [!WARNING]
+> The CSV import process has only been tested up to **locations**.  
+> Anything beyond this point is currently **untested**.
+
 This script connects to a NetBox instance and exports data to CSV files based on YAML configuration files. It iterates over all configuration files in the `conf/` directory, retrieves the specified fields from NetBox for each object type, and stores the extracted data in separate CSV files under the `output/` directory.
 
 ## Features
